@@ -1,6 +1,5 @@
 //! 解析(requirement specifier)[https://pip.pypa.io/en/stable/reference/requirement-specifiers]
 //! refer to https://peps.python.org/pep-0508/ for the complete parsley grammar.
-//! wsp* = space0
 //! -> pythonExpression 是表示解析'->'前面的一串语法, 对应的python返回值是什么
 use crate::requirements::{Comparison, MarkerExpr, MarkerOp, RequirementSpecifier};
 use nom::{
@@ -15,6 +14,8 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult, Parser,
 };
+
+// wsp* = space0
 
 pub fn version_cmp(input: &str) -> IResult<&str, Comparison> {
     map(
@@ -39,7 +40,7 @@ pub fn version(input: &str) -> IResult<&str, String> {
     map(
         preceded(
             space0,
-            take_while1(|c: char| is_alphanumeric(c as u8) || "-_.*+!".chars().any(|cc| cc.eq(&c))),
+            take_while1(|c: char| is_alphanumeric(c as u8) || "-_.*+!".contains(c)),
         ),
         |s: &str| s.to_string(),
     )(input)
@@ -79,19 +80,19 @@ pub fn marker_op(input: &str) -> IResult<&str, MarkerOp> {
     ))(input)
 }
 
-pub fn is_python_str_c(c: u8) -> bool {
-    is_space(c) || is_alphanumeric(c) || "().{}-_*#:;,/?[]!~`@$%^&=+|<>".bytes().any(|t| t.eq(&c))
+pub fn is_python_str_c(c: char) -> bool {
+    is_space(c as u8) || is_alphanumeric(c as u8) || "().{}-_*#:;,/?[]!~`@$%^&=+|<>".contains(c)
 }
 
 pub fn python_str(input: &str) -> IResult<&str, &str> {
     delimited(
         nomchar('\''),
-        take_while(|c| is_python_str_c(c as u8) || '"'.eq(&c)),
+        take_while(|c| is_python_str_c(c) || c == '"'),
         nomchar('\''),
     )
     .or(delimited(
         nomchar('"'),
-        take_while(|c| is_python_str_c(c as u8) || '\''.eq(&c)),
+        take_while(|c| is_python_str_c(c) || c == '\''),
         nomchar('"'),
     ))
     .parse(input)
@@ -128,8 +129,7 @@ pub fn marker_expr(input: &str) -> IResult<&str, MarkerExpr> {
             preceded(space0, nomchar('(')),
             marker_expr,
             preceded(space0, nomchar(')')),
-        )
-        .map(|e| MarkerExpr::Bracketed(Box::new(e))),
+        ),
         separated_pair(marker_expr, preceded(space0, tag("and")), marker_expr)
             .map(|(left, right)| MarkerExpr::And(Box::new(left), Box::new(right))),
         separated_pair(marker_expr, preceded(space0, tag("or")), marker_expr)
@@ -142,10 +142,7 @@ pub fn quoted_marker(input: &str) -> IResult<&str, MarkerExpr> {
 }
 
 pub fn identifier_end(input: &str) -> IResult<&str, &str> {
-    recognize(
-        take_while(|c| '-'.eq(&c) || '_'.eq(&c) || '.'.eq(&c))
-            .and(satisfy(|u| is_alphanumeric(u as u8))),
-    )(input)
+    recognize(take_while(|c| "-_.".contains(c)).and(satisfy(|u| is_alphanumeric(u as u8))))(input)
 }
 
 // name = identifier
@@ -203,14 +200,14 @@ pub fn url_req(input: &str) -> IResult<&str, RequirementSpecifier> {
         space0,
         opt(extras),
         space0,
-        opt(urlspec),
+        urlspec,
         alt((space1, eof)),
         opt(quoted_marker),
     ))
     .map(|(i, _, e, _, v, _, m)| RequirementSpecifier {
         name: i,
         extras: if let Some(Some(j)) = e { j } else { vec![] },
-        urlspec: v.map(|s| s.to_string()),
+        urlspec: Some(v.to_string()),
         marker_expr: m,
         ..Default::default()
     })

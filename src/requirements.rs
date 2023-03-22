@@ -37,10 +37,10 @@ pub enum MarkerOp {
     NotIn,
 }
 
+// and 优先级大于 or
 #[derive(Debug, PartialEq)]
 pub enum MarkerExpr {
     Basic(String, MarkerOp, String),
-    Bracketed(Box<Self>),
     And(Box<Self>, Box<Self>),
     Or(Box<Self>, Box<Self>),
 }
