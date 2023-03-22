@@ -127,18 +127,36 @@ pub fn marker_expr(input: &str) -> IResult<&str, MarkerExpr> {
             .map(|(left, op, right)| MarkerExpr::Basic(left.to_string(), op, right.to_string())),
         delimited(
             preceded(space0, nomchar('(')),
-            marker_expr,
+            marker_or,
             preceded(space0, nomchar(')')),
         ),
-        separated_pair(marker_expr, preceded(space0, tag("and")), marker_expr)
-            .map(|(left, right)| MarkerExpr::And(Box::new(left), Box::new(right))),
-        separated_pair(marker_expr, preceded(space0, tag("or")), marker_expr)
-            .map(|(left, right)| MarkerExpr::Or(Box::new(left), Box::new(right))),
     ))(input)
 }
 
+pub fn marker_and(input: &str) -> IResult<&str, MarkerExpr> {
+    alt((
+        separated_pair(
+            marker_expr,
+            delimited(space0, tag("and"), space0),
+            marker_expr,
+        )
+        .map(|(left, right)| MarkerExpr::And(Box::new(left), Box::new(right))),
+        marker_expr,
+    ))(input)
+}
+
+pub fn marker_or(input: &str) -> IResult<&str, MarkerExpr> {
+    alt((
+        separated_pair(marker_and, delimited(space0, tag("or"), space0), marker_and)
+            .map(|(left, right)| MarkerExpr::Or(Box::new(left), Box::new(right))),
+        marker_and,
+    ))(input)
+}
+
+// marker = marker_or
+
 pub fn quoted_marker(input: &str) -> IResult<&str, MarkerExpr> {
-    preceded(nomchar(';').and(space0), marker_expr)(input)
+    preceded(nomchar(';').and(space0), marker_or)(input)
 }
 
 pub fn identifier_end(input: &str) -> IResult<&str, &str> {
