@@ -2,7 +2,17 @@
 name = "pyreq-rs"
 version = "0.1.0"
 edition = "2021"
+authors = ["sify21@163.com"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/sify21/pyreq-rs"
+description = """
+A Rust library to parse python requirements file using nom.
+"""
+categories = ["parser-implementations"]
+keywords = ["nom", "python", "requirements"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+nom = "7"
