@@ -88,7 +88,7 @@ mod tests {
                 "",
                 RequirementSpecifier {
                     name: "name".to_string(),
-                    version_specs: vec![(Comparison::LessThanOrEqual, "1".to_string())],
+                    version_specs: vec![(Comparison::LessThanOrEqual, "1".to_string()).into()],
                     ..Default::default()
                 }
             ))
@@ -99,7 +99,7 @@ mod tests {
                 "",
                 RequirementSpecifier {
                     name: "name".to_string(),
-                    version_specs: vec![(Comparison::GreaterThanOrEqual, "3".to_string())],
+                    version_specs: vec![(Comparison::GreaterThanOrEqual, "3".to_string()).into()],
                     ..Default::default()
                 }
             ))
@@ -111,8 +111,8 @@ mod tests {
                 RequirementSpecifier {
                     name: "name".to_string(),
                     version_specs: vec![
-                        (Comparison::GreaterThanOrEqual, "3".to_string()),
-                        (Comparison::LessThan, "2".to_string())
+                        (Comparison::GreaterThanOrEqual, "3".to_string()).into(),
+                        (Comparison::LessThan, "2".to_string()).into()
                     ],
                     ..Default::default()
                 }

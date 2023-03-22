@@ -1,7 +1,7 @@
 //! 解析(requirement specifier)[https://pip.pypa.io/en/stable/reference/requirement-specifiers]
 //! refer to https://peps.python.org/pep-0508/ for the complete parsley grammar.
 //! -> pythonExpression 是表示解析'->'前面的一串语法, 对应的python返回值是什么
-use crate::requirements::{Comparison, MarkerExpr, MarkerOp, RequirementSpecifier};
+use crate::requirements::{Comparison, MarkerExpr, MarkerOp, RequirementSpecifier, VersionSpec};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1, take_while_m_n},
@@ -46,11 +46,11 @@ pub fn version(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
-pub fn version_one(input: &str) -> IResult<&str, (Comparison, String)> {
-    terminated(pair(version_cmp, version), space0)(input)
+pub fn version_one(input: &str) -> IResult<&str, VersionSpec> {
+    terminated(pair(version_cmp, version).map(|r| r.into()), space0)(input)
 }
 
-pub fn version_many(input: &str) -> IResult<&str, Vec<(Comparison, String)>> {
+pub fn version_many(input: &str) -> IResult<&str, Vec<VersionSpec>> {
     version_one
         .and(many0(preceded(space0.and(nomchar(',')), version_one)))
         .map(|(one, mut v)| {
@@ -60,7 +60,7 @@ pub fn version_many(input: &str) -> IResult<&str, Vec<(Comparison, String)>> {
         .parse(input)
 }
 
-pub fn versionspec(input: &str) -> IResult<&str, Vec<(Comparison, String)>> {
+pub fn versionspec(input: &str) -> IResult<&str, Vec<VersionSpec>> {
     delimited(nomchar('('), version_many, nomchar(')'))
         .or(version_many)
         .parse(input)

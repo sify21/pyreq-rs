@@ -60,11 +60,27 @@ pub enum VersionControlSystem {
     Unknown,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct VersionSpec(Comparison, String);
+
+impl From<(Comparison, String)> for VersionSpec {
+    fn from((c, v): (Comparison, String)) -> Self {
+        Self(c, v)
+    }
+}
+
+impl VersionSpec {
+    pub fn is_valid(&self, version: &str) -> bool {
+        // TODO 解析version并比较
+        true
+    }
+}
+
 #[derive(Debug, PartialEq, Default)]
 pub struct RequirementSpecifier {
     pub name: String,
     pub extras: Vec<String>,
-    pub version_specs: Vec<(Comparison, String)>,
+    pub version_specs: Vec<VersionSpec>,
     pub urlspec: Option<String>,
     pub marker_expr: Option<MarkerExpr>,
 }
