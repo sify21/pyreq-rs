@@ -169,5 +169,143 @@ mod tests {
                 }
             ))
         );
+        assert_eq!(
+            specification("name; os_name=='a' or os_name=='b'"),
+            Ok((
+                "",
+                RequirementSpecifier {
+                    name: "name".to_string(),
+                    marker_expr: Some(MarkerExpr::Or(
+                        Box::new(MarkerExpr::Basic(
+                            "os_name".to_string(),
+                            MarkerOp::Comparison(Comparison::Equal),
+                            "a".to_string()
+                        )),
+                        Box::new(MarkerExpr::Basic(
+                            "os_name".to_string(),
+                            MarkerOp::Comparison(Comparison::Equal),
+                            "b".to_string()
+                        ))
+                    )),
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            specification("name; os_name=='a' and os_name=='b' or os_name=='c'"),
+            Ok((
+                "",
+                RequirementSpecifier {
+                    name: "name".to_string(),
+                    marker_expr: Some(MarkerExpr::Or(
+                        Box::new(MarkerExpr::And(
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "a".to_string()
+                            )),
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "b".to_string()
+                            ))
+                        )),
+                        Box::new(MarkerExpr::Basic(
+                            "os_name".to_string(),
+                            MarkerOp::Comparison(Comparison::Equal),
+                            "c".to_string()
+                        ))
+                    )),
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            specification("name; os_name=='a' and (os_name=='b' or os_name=='c')"),
+            Ok((
+                "",
+                RequirementSpecifier {
+                    name: "name".to_string(),
+                    marker_expr: Some(MarkerExpr::And(
+                        Box::new(MarkerExpr::Basic(
+                            "os_name".to_string(),
+                            MarkerOp::Comparison(Comparison::Equal),
+                            "a".to_string()
+                        )),
+                        Box::new(MarkerExpr::Or(
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "b".to_string()
+                            )),
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "c".to_string()
+                            ))
+                        ))
+                    )),
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            specification("name; os_name=='a' or os_name=='b' and os_name=='c'"),
+            Ok((
+                "",
+                RequirementSpecifier {
+                    name: "name".to_string(),
+                    marker_expr: Some(MarkerExpr::Or(
+                        Box::new(MarkerExpr::Basic(
+                            "os_name".to_string(),
+                            MarkerOp::Comparison(Comparison::Equal),
+                            "a".to_string()
+                        )),
+                        Box::new(MarkerExpr::And(
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "b".to_string()
+                            )),
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "c".to_string()
+                            ))
+                        ))
+                    )),
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            specification("name; (os_name=='a' or os_name=='b') and os_name=='c'"),
+            Ok((
+                "",
+                RequirementSpecifier {
+                    name: "name".to_string(),
+                    marker_expr: Some(MarkerExpr::And(
+                        Box::new(MarkerExpr::Or(
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "a".to_string()
+                            )),
+                            Box::new(MarkerExpr::Basic(
+                                "os_name".to_string(),
+                                MarkerOp::Comparison(Comparison::Equal),
+                                "b".to_string()
+                            ))
+                        )),
+                        Box::new(MarkerExpr::Basic(
+                            "os_name".to_string(),
+                            MarkerOp::Comparison(Comparison::Equal),
+                            "c".to_string()
+                        ))
+                    )),
+                    ..Default::default()
+                }
+            ))
+        );
     }
 }
