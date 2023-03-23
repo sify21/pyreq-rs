@@ -153,16 +153,53 @@ impl VersionSpec {
         !self.compare_equal(prospective, spec)
     }
     fn compare_less_than_equal(&self, prospective: &Version, spec: &str) -> bool {
-        true
+        if let Ok(("", spec_v)) = version_scheme(spec) {
+            prospective.to_public() <= spec_v
+        } else {
+            false
+        }
     }
     fn compare_greater_than_equal(&self, prospective: &Version, spec: &str) -> bool {
-        true
+        if let Ok(("", spec_v)) = version_scheme(spec) {
+            prospective.to_public() >= spec_v
+        } else {
+            false
+        }
     }
     fn compare_less_than(&self, prospective: &Version, spec: &str) -> bool {
-        true
+        if let Ok(("", spec_v)) = version_scheme(spec) {
+            if !(prospective < &spec_v) {
+                return false;
+            }
+            if !spec_v.is_prerelease() && prospective.is_prerelease() {
+                if prospective.to_base() == spec_v.to_base() {
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
+        }
     }
     fn compare_greater_than(&self, prospective: &Version, spec: &str) -> bool {
-        true
+        if let Ok(("", spec_v)) = version_scheme(spec) {
+            if !(prospective > &spec_v) {
+                return false;
+            }
+            if !spec_v.is_postrelease() && prospective.is_postrelease() {
+                if prospective.to_base() == spec_v.to_base() {
+                    return false;
+                }
+            }
+            if prospective.local.is_some() {
+                if prospective.to_base() == spec_v.to_base() {
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
+        }
     }
     fn compare_arbitrary(&self, prospective: &Version, spec: &str) -> bool {
         prospective.to_string().eq_ignore_ascii_case(spec)
@@ -184,7 +221,7 @@ impl RequirementSpecifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub enum LocalVersionPart {
     Num(u64),
     LowerStr(String),
@@ -212,6 +249,12 @@ impl PartialOrd for LocalVersionPart {
     }
 }
 
+impl PartialEq for LocalVersionPart {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
 impl Display for LocalVersionPart {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -224,7 +267,7 @@ impl Display for LocalVersionPart {
 // this is a version identifier, defined in pep 440, it is not the same as the string used in VersionSpec
 // public version identifier = [N!]N(.N)*[{a|b|rc}N][.postN][.devN]
 // local version identifier = <public version identifier>[+<local version label>]
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Eq)]
 pub struct Version {
     pub epoch: u64,
     pub release: Vec<u64>,
@@ -250,6 +293,12 @@ impl Ord for Version {
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Version {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
     }
 }
 
@@ -322,12 +371,44 @@ impl Version {
             for i in &self.release[..self.release.len() - 1] {
                 parts.push_str(&format!("{}.", i));
             }
+            parts.truncate(parts.len() - 1);
         }
         parts.push_str(".*");
         parts
     }
 
+    pub fn is_prerelease(&self) -> bool {
+        self.dev.is_some() || self.pre.is_some()
+    }
+
+    pub fn is_postrelease(&self) -> bool {
+        self.post.is_some()
+    }
+
     // The public portion of the version.(without local)
+    // public_str = ver.public().to_string()
+    pub fn to_public(&self) -> Self {
+        Self {
+            epoch: self.epoch.clone(),
+            release: self.release.clone(),
+            pre: self.pre.clone(),
+            post: self.post.clone(),
+            dev: self.dev.clone(),
+            local: None,
+        }
+    }
+
+    pub fn to_base(&self) -> Self {
+        Self {
+            epoch: self.epoch.clone(),
+            release: self.release.clone(),
+            pre: None,
+            post: None,
+            dev: None,
+            local: None,
+        }
+    }
+
     pub fn public_str(&self) -> String {
         self.canonicalize_str(false, false)
     }
