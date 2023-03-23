@@ -216,7 +216,7 @@ pub struct RequirementSpecifier {
 }
 
 impl RequirementSpecifier {
-    pub fn contains(&self, version: &str) -> bool {
+    pub fn contains_version(&self, version: &str) -> bool {
         self.version_specs.iter().all(|spec| spec.contains(version))
     }
 }
