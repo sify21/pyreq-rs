@@ -1,10 +1,5 @@
 use std::fmt::Display;
 
-use nom::{
-    branch::alt, bytes::complete::tag, character::complete::digit1, combinator::recognize,
-    sequence::tuple, IResult, Parser,
-};
-
 use crate::parser::version::version_scheme;
 
 // version_cmp
@@ -101,67 +96,73 @@ impl VersionSpec {
     }
 
     // ~=2.2 is equivalent to >=2.2,==2.*
-    fn compare_compatible(&self, version: &Version, spec: &str) -> bool {
-        let segs: Vec<&str> = Self::version_split(&self.1)
-            .into_iter()
-            .take_while(|&s| Self::is_not_suffix(s))
-            .collect();
-        let mut prefix = if segs.len() > 1 {
-            segs[..segs.len() - 1].join(".")
+    fn compare_compatible(&self, prospective: &Version, spec: &str) -> bool {
+        if let Ok(("", v)) = version_scheme(spec) {
+            // ignore suffix segments(only contains epoch and release)
+            self.compare_greater_than_equal(prospective, spec)
+                && self.compare_equal(prospective, &v.prefix_str())
         } else {
-            String::new()
-        };
-        prefix.push_str(".*");
-        self.compare_greater_than_equal(version, spec) && self.compare_equal(version, &prefix)
+            // 按道理spec必能解析为Version，但这里做个容错
+            false
+        }
     }
-    fn compare_equal(&self, version: &Version, spec: &str) -> bool {
-        if spec.ends_with(".*") {}
-        true
-    }
-    fn compare_not_equal(&self, version: &Version, spec: &str) -> bool {
-        !self.compare_equal(version, spec)
-    }
-    fn compare_less_than_equal(&self, version: &Version, spec: &str) -> bool {
-        true
-    }
-    fn compare_greater_than_equal(&self, version: &Version, spec: &str) -> bool {
-        true
-    }
-    fn compare_less_than(&self, version: &Version, spec: &str) -> bool {
-        true
-    }
-    fn compare_greater_than(&self, version: &Version, spec: &str) -> bool {
-        true
-    }
-    fn compare_arbitrary(&self, version: &Version, spec: &str) -> bool {
-        true
-    }
-
-    // 处理1.3.3a9的情况
-    fn prefix_regex(input: &str) -> IResult<&str, (&str, &str)> {
-        tuple((
-            digit1,
-            recognize(alt((tag("a"), tag("b"), tag("c"), tag("rc"))).and(digit1)),
-        ))(input)
-    }
-
-    fn version_split(version: &str) -> Vec<&str> {
-        let mut ret = vec![];
-        for item in version.split('.') {
-            if let Ok(("", (a, b))) = Self::prefix_regex(item) {
-                ret.push(a);
-                ret.push(b);
+    // spec中允许包含wildcard(prefix match)和local versions
+    fn compare_equal(&self, prospective: &Version, spec: &str) -> bool {
+        // prefix matching
+        // 按解析的语法, spec只能是[epoch]release.*的格式
+        // 在判断prefix match忽略prospective的local segment
+        // 我这里的实现跟python不同，没用version_split，是先判断epoch是否相等，再判断release
+        if spec.ends_with(".*") {
+            if let Ok(("", spec_v)) = version_scheme(&spec[..spec.len() - 2]) {
+                if prospective.epoch != spec_v.epoch {
+                    return false;
+                }
+                // 0-pad the prospective version
+                // python中的_pad_version是在_version_split数组的release后边加"0"元素，使两个数组长度相同
+                for i in 0..prospective.release.len().min(spec_v.release.len()) {
+                    if prospective.release[i] != spec_v.release[i] {
+                        return false;
+                    }
+                }
+                // prospective.release更多不用处理，因为只要前缀匹配就可以
+                // spec_v.release更多的情况, 多出来的部分必须全是0(符合python中的0-pad)
+                if spec_v.release.len() > prospective.release.len() {
+                    return spec_v.release[prospective.release.len()..spec_v.release.len()]
+                        .iter()
+                        .all(|&i| i == 0);
+                }
+                true
             } else {
-                ret.push(item);
+                false
+            }
+        } else {
+            if let Ok(("", mut spec_v)) = version_scheme(spec) {
+                if spec_v.local.is_none() && prospective.local.is_some() {
+                    spec_v.local = prospective.local.clone();
+                }
+                prospective.eq(&spec_v)
+            } else {
+                false
             }
         }
-        ret
     }
-
-    fn is_not_suffix(segment: &str) -> bool {
-        !["dev", "a", "b", "rc", "post"]
-            .into_iter()
-            .any(|s| segment.eq(s))
+    fn compare_not_equal(&self, prospective: &Version, spec: &str) -> bool {
+        !self.compare_equal(prospective, spec)
+    }
+    fn compare_less_than_equal(&self, prospective: &Version, spec: &str) -> bool {
+        true
+    }
+    fn compare_greater_than_equal(&self, prospective: &Version, spec: &str) -> bool {
+        true
+    }
+    fn compare_less_than(&self, prospective: &Version, spec: &str) -> bool {
+        true
+    }
+    fn compare_greater_than(&self, prospective: &Version, spec: &str) -> bool {
+        true
+    }
+    fn compare_arbitrary(&self, prospective: &Version, spec: &str) -> bool {
+        prospective.to_string().eq_ignore_ascii_case(spec)
     }
 }
 
@@ -180,7 +181,7 @@ impl RequirementSpecifier {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LocalVersionPart {
     LowerStr(String),
     Num(u64),
@@ -195,9 +196,10 @@ impl Display for LocalVersionPart {
     }
 }
 
-// this is version scheme, defined in pep 440.
-// this is a version identifier, it is not the same as the string used in VersionSpec
+// this is a version identifier, defined in pep 440, it is not the same as the string used in VersionSpec
 // TODO impl Ord for sorting Versions
+// public version identifier = [N!]N(.N)*[{a|b|rc}N][.postN][.devN]
+// local version identifier = <public version identifier>[+<local version label>]
 #[derive(Debug, PartialEq, Default)]
 pub struct Version {
     pub epoch: u64,
@@ -208,39 +210,86 @@ pub struct Version {
     pub local: Option<Vec<LocalVersionPart>>,
 }
 
+impl Version {
+    // 用于compare_compatible
+    pub fn prefix_str(&self) -> String {
+        let mut parts = String::new();
+        // epoch
+        if self.epoch != 0 {
+            parts.push_str(&format!("{}!", self.epoch));
+        }
+        // 忽略 release 最后一位，用'.*'替代
+        if self.release.len() > 1 {
+            for i in &self.release[..self.release.len() - 1] {
+                parts.push_str(&format!("{}.", i));
+            }
+        }
+        parts.push_str(".*");
+        parts
+    }
+
+    // The public portion of the version.(without local)
+    pub fn public_str(&self) -> String {
+        self.canonicalize_str(false, false)
+    }
+
+    // canonicalize_version at https://github.com/pypa/packaging/blob/main/src/packaging/utils.py
+    // strip_trailing_zero: 不包含release后边的'.0'. 用VersionSpec的哈希和相等比较，见Specifier中的_canonical_spec, __hash__, __eq__. https://github.com/pypa/packaging/blob/main/src/packaging/specifiers.py
+    // with_local: public_str 不包含local version part
+    pub fn canonicalize_str(&self, strip_trailing_zero: bool, with_local: bool) -> String {
+        let mut parts = String::new();
+        // epoch
+        if self.epoch != 0 {
+            parts.push_str(&format!("{}!", self.epoch));
+        }
+        // release
+        if strip_trailing_zero {
+            for i in self
+                .release
+                .iter()
+                .rev()
+                .skip_while(|&&r| r == 0)
+                .collect::<Vec<&u64>>()
+                .iter()
+                .rev()
+            {
+                parts.push_str(&format!("{}.", i));
+            }
+        } else {
+            for i in self.release.iter() {
+                parts.push_str(&format!("{}.", i));
+            }
+        }
+        parts.truncate(parts.len() - 1);
+        // pre-release
+        if let Some((l, n)) = self.pre.as_ref() {
+            parts.push_str(&format!("{}{}", l, n));
+        }
+        // post-release
+        if let Some((_, n)) = self.post.as_ref() {
+            parts.push_str(&format!(".post{}", n));
+        }
+        // dev-release
+        if let Some((_, n)) = self.dev.as_ref() {
+            parts.push_str(&format!(".dev{}", n));
+        }
+        // local version segment
+        if with_local {
+            if let Some(local) = self.local.as_ref() {
+                parts.push_str("+");
+                for i in local.iter() {
+                    parts.push_str(&format!("{}.", i));
+                }
+                parts.truncate(parts.len() - 1);
+            }
+        }
+        parts
+    }
+}
+
 // refer to Version.__str__ from https://github.com/pypa/packaging/blob/main/src/packaging/version.py
 impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut parts = vec![];
-        if self.epoch != 0 {
-            parts.push(format!("{}!", self.epoch));
-        }
-        parts.push(
-            self.release
-                .iter()
-                .map(|u| u.to_string())
-                .collect::<Vec<String>>()
-                .join("."),
-        );
-        if let Some((l, n)) = self.pre.as_ref() {
-            parts.push(format!("{}{}", l, n));
-        }
-        if let Some((_, n)) = self.post.as_ref() {
-            parts.push(format!(".post{}", n));
-        }
-        if let Some((_, n)) = self.dev.as_ref() {
-            parts.push(format!(".dev{}", n));
-        }
-        if let Some(local) = self.local.as_ref() {
-            parts.push(format!(
-                "+{}",
-                local
-                    .iter()
-                    .map(|i| i.to_string())
-                    .collect::<Vec<String>>()
-                    .join(".")
-            ));
-        }
-        write!(f, "{}", parts.join(""))
+        write!(f, "{}", self.canonicalize_str(false, true))
     }
 }
