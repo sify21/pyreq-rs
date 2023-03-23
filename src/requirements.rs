@@ -234,9 +234,16 @@ pub struct Version {
     pub local: Option<Vec<LocalVersionPart>>,
 }
 
+// permitted suffix and relative ordering
+// Within a numeric release: .devN, aN, bN, rcN, <no suffix>, .postN
+// within a pre-release: .devN, <no suffix>, .postN
+// within a post-release: .devN, <no suffix>
+// Within a pre-release, post-release or development release segment with a shared prefix, ordering MUST be by the value of the numeric component.
+// 借鉴_cmpkey的方式排序
+// _cmpkey at https://github.com/pypa/packaging/blob/main/src/packaging/version.py
 impl Ord for Version {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        todo!()
+        self.cmpkey().cmp(&other.cmpkey())
     }
 }
 
@@ -246,7 +253,63 @@ impl PartialOrd for Version {
     }
 }
 
+static NEGATIVE_INFINITY_LOCAL: Vec<LocalVersionPart> = vec![];
+static INFINITY_PRE_POST_DEV: (&'static str, u64) = ("~", u64::MAX);
+static NEGATIVE_INFINITY_PRE_POST_DEV: (&'static str, u64) = ("!", 0);
 impl Version {
+    pub fn cmpkey(
+        &self,
+    ) -> (
+        u64,
+        Vec<u64>,
+        (&str, u64),
+        (&str, u64),
+        (&str, u64),
+        &Vec<LocalVersionPart>,
+    ) {
+        let pre = if self.pre.is_none() && self.post.is_none() && self.dev.is_some() {
+            NEGATIVE_INFINITY_PRE_POST_DEV
+        } else {
+            match self.pre {
+                None => INFINITY_PRE_POST_DEV,
+                Some((ref l, n)) => (l.as_str(), n),
+            }
+        };
+        let post = match self.post {
+            None => NEGATIVE_INFINITY_PRE_POST_DEV,
+            Some((ref l, n)) => (l.as_str(), n),
+        };
+        let dev = match self.dev {
+            None => INFINITY_PRE_POST_DEV,
+            Some((ref l, n)) => (l.as_str(), n),
+        };
+        let local = match self.local {
+            None => &NEGATIVE_INFINITY_LOCAL,
+            Some(ref v) => v,
+        };
+        (
+            self.epoch,
+            self.release_without_trailing_zero(),
+            pre,
+            post,
+            dev,
+            local,
+        )
+    }
+
+    // 用于Version.cmp
+    pub fn release_without_trailing_zero(&self) -> Vec<u64> {
+        self.release
+            .iter()
+            .rev()
+            .skip_while(|&&r| r == 0)
+            .collect::<Vec<&u64>>()
+            .iter()
+            .rev()
+            .map(|&&x| x)
+            .collect()
+    }
+
     // 用于compare_compatible
     pub fn prefix_str(&self) -> String {
         let mut parts = String::new();

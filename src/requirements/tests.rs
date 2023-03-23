@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 
-use crate::requirements::LocalVersionPart;
+use crate::{parser::version::version_scheme, requirements::LocalVersionPart};
+
+use super::Version;
 
 #[test]
 fn test_local_version_part_ordering() {
@@ -39,4 +41,129 @@ fn test_local_version_part_ordering() {
             .cmp(&LocalVersionPart::LowerStr("abc".to_string())),
         Ordering::Greater
     );
+}
+
+#[test]
+fn test_version_ordering() {
+    // https://github.com/pypa/packaging/blob/main/tests/test_version.py
+    let versions = [
+        "1.0.dev456",
+        "1.0a1",
+        "1.0a2.dev456",
+        "1.0a12.dev456",
+        "1.0a12",
+        "1.0b1.dev456",
+        "1.0b2",
+        "1.0b2.post345.dev456",
+        "1.0b2.post345",
+        "1.0b2-346",
+        "1.0c1.dev456",
+        "1.0c1",
+        "1.0rc2",
+        "1.0c3",
+        "1.0",
+        "1.0.post456.dev34",
+        "1.0.post456",
+        "1.1.dev1",
+        "1.2+123abc",
+        "1.2+123abc456",
+        "1.2+abc",
+        "1.2+abc123",
+        "1.2+abc123def",
+        "1.2+1234.abc",
+        "1.2+123456",
+        "1.2.r32+123456",
+        "1.2.rev33+123456",
+        "1!1.0.dev456",
+        "1!1.0a1",
+        "1!1.0a2.dev456",
+        "1!1.0a12.dev456",
+        "1!1.0a12",
+        "1!1.0b1.dev456",
+        "1!1.0b2",
+        "1!1.0b2.post345.dev456",
+        "1!1.0b2.post345",
+        "1!1.0b2-346",
+        "1!1.0c1.dev456",
+        "1!1.0c1",
+        "1!1.0rc2",
+        "1!1.0c3",
+        "1!1.0",
+        "1!1.0.post456.dev34",
+        "1!1.0.post456",
+        "1!1.1.dev1",
+        "1!1.2+123abc",
+        "1!1.2+123abc456",
+        "1!1.2+abc",
+        "1!1.2+abc123",
+        "1!1.2+abc123def",
+        "1!1.2+1234.abc",
+        "1!1.2+123456",
+        "1!1.2.r32+123456",
+        "1!1.2.rev33+123456",
+    ];
+    let vers: Vec<Version> = versions
+        .iter()
+        .map(|&s| version_scheme(s).unwrap().1)
+        .collect();
+    for i in 0..vers.len() {
+        for j in i + 1..vers.len() {
+            assert!(vers[i] < vers[j]);
+        }
+    }
+    for i in 0..vers.len() {
+        for j in i..vers.len() {
+            assert!(vers[i] <= vers[j]);
+        }
+    }
+    for i in 0..vers.len() {
+        assert!(vers[i] == vers[i]);
+    }
+    for i in 0..vers.len() {
+        for j in 0..vers.len() {
+            if i != j {
+                assert!(vers[i] != vers[j]);
+            }
+        }
+    }
+    for i in 0..vers.len() {
+        for j in 0..i + 1 {
+            assert!(vers[i] >= vers[j]);
+        }
+    }
+    for i in 0..vers.len() {
+        for j in 0..i {
+            assert!(vers[i] > vers[j]);
+        }
+    }
+    for i in 0..vers.len() {
+        for j in 0..i + 1 {
+            assert!(!(vers[i] < vers[j]));
+        }
+    }
+    for i in 0..vers.len() {
+        for j in 0..i {
+            assert!(!(vers[i] <= vers[j]));
+        }
+    }
+    for i in 0..vers.len() {
+        for j in 0..vers.len() {
+            if i != j {
+                assert!(!(vers[i] == vers[j]));
+            }
+        }
+    }
+    for i in 0..vers.len() {
+        assert!(!(vers[i] != vers[i]));
+    }
+    for i in 0..vers.len() {
+        for j in i + 1..vers.len() {
+            assert!(!(vers[i] >= vers[j]));
+        }
+    }
+    for i in 0..vers.len() {
+        for j in i..vers.len() {
+            assert!(!(vers[i] > vers[j]));
+        }
+    }
 }
