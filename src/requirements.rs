@@ -6,7 +6,7 @@ use nom::{
 use crate::parser::version::version_scheme;
 
 // version_cmp
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Comparison {
     LessThan,
     LessThanOrEqual,
@@ -69,7 +69,7 @@ pub enum VersionControlSystem {
 
 // see regex for VersionSpecifier at https://github.com/pypa/packaging/blob/main/src/packaging/specifiers.py
 #[derive(Debug, PartialEq)]
-pub struct VersionSpec(Comparison, String);
+pub struct VersionSpec(pub Comparison, pub String);
 
 impl From<(Comparison, String)> for VersionSpec {
     fn from((c, v): (Comparison, String)) -> Self {

@@ -4,16 +4,18 @@
 use crate::requirements::{Comparison, MarkerExpr, MarkerOp, RequirementSpecifier, VersionSpec};
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while, take_while1, take_while_m_n},
+    bytes::complete::{tag, take_while, take_while_m_n},
     character::{
-        complete::{char as nomchar, digit0, hex_digit1, satisfy, space0, space1},
+        complete::{char as nomchar, digit0, digit1, hex_digit1, satisfy, space0, space1},
         is_alphabetic, is_alphanumeric, is_digit, is_hex_digit, is_space,
     },
     combinator::{eof, map, opt, recognize},
     multi::{count, many0, many1, many_m_n},
-    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult, Parser,
 };
+
+use super::version::{dev, epoch, local, post, pre, release};
 
 // wsp* = space0
 
@@ -36,21 +38,88 @@ pub fn version_cmp(input: &str) -> IResult<&str, Comparison> {
     )(input)
 }
 
-// 这个可以进一步细化，参考https://github.com/pypa/packaging/blob/main/src/packaging/specifiers.py
+// version可以进一步细化为4个分类，参考https://github.com/pypa/packaging/blob/main/src/packaging/specifiers.py
 // Specifier类中的_version_regex_str
 // 根据operator的不同有不同的要求
-pub fn version(input: &str) -> IResult<&str, String> {
+
+pub fn version_arbitraryequal(input: &str) -> IResult<&str, String> {
     map(
         preceded(
             space0,
-            take_while1(|c: char| is_alphanumeric(c as u8) || "-_.*+!".contains(c)),
+            take_while(|c: char| !c.is_whitespace() && c != ';' && c != ')'),
+        ),
+        |s: &str| s.to_string(),
+    )(input)
+}
+
+pub fn version_equal_notequal(input: &str) -> IResult<&str, String> {
+    map(
+        preceded(
+            space0,
+            recognize(tuple((
+                opt(nomchar('v')),
+                opt(epoch),
+                release,
+                opt(alt((
+                    tag(".*"),
+                    recognize(tuple((opt(pre), opt(post), opt(dev), opt(local)))),
+                ))),
+            ))),
+        ),
+        |s: &str| s.to_string(),
+    )(input)
+}
+
+pub fn version_compatiblerelease(input: &str) -> IResult<&str, String> {
+    map(
+        preceded(
+            space0,
+            recognize(tuple((
+                opt(nomchar('v')),
+                opt(epoch),
+                digit1.and(many1(preceded(nomchar('.'), digit1))),
+                opt(pre),
+                opt(post),
+                opt(dev),
+            ))),
+        ),
+        |s: &str| s.to_string(),
+    )(input)
+}
+
+pub fn version_other_operator(input: &str) -> IResult<&str, String> {
+    map(
+        preceded(
+            space0,
+            recognize(tuple((
+                opt(nomchar('v')),
+                opt(epoch),
+                release,
+                opt(pre),
+                opt(post),
+                opt(dev),
+            ))),
         ),
         |s: &str| s.to_string(),
     )(input)
 }
 
 pub fn version_one(input: &str) -> IResult<&str, VersionSpec> {
-    terminated(pair(version_cmp, version).map(|r| r.into()), space0)(input)
+    let (input, operator) = version_cmp(input)?;
+    match operator {
+        Comparison::ArbitraryEqual => terminated(version_arbitraryequal, space0)
+            .map(|v| (operator, v).into())
+            .parse(input),
+        Comparison::Equal | Comparison::NotEqual => terminated(version_equal_notequal, space0)
+            .map(|v| (operator, v).into())
+            .parse(input),
+        Comparison::CompatibleRelease => terminated(version_compatiblerelease, space0)
+            .map(|v| (operator, v).into())
+            .parse(input),
+        _ => terminated(version_other_operator, space0)
+            .map(|v| (operator, v).into())
+            .parse(input),
+    }
 }
 
 pub fn version_many(input: &str) -> IResult<&str, Vec<VersionSpec>> {
