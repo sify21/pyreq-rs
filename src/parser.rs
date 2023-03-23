@@ -1,4 +1,5 @@
 pub mod requirement_specifier;
+pub mod version;
 
 //pub fn pip_option(input: &str) -> IResult<&str, &str> {}
 //pub fn requirement_specifier(input: &str) -> IResult<&str, &str> {}
@@ -14,7 +15,10 @@ pub mod requirement_specifier;
 #[cfg(test)]
 mod tests {
     use super::requirement_specifier::specification;
-    use crate::requirements::{Comparison, MarkerExpr, MarkerOp, RequirementSpecifier};
+    use super::version::version_scheme;
+    use crate::requirements::{
+        Comparison, LocalVersionPart, MarkerExpr, MarkerOp, RequirementSpecifier, Version,
+    };
 
     #[test]
     fn test_requirement_specifier() {
@@ -303,6 +307,74 @@ mod tests {
                             "c".to_string()
                         ))
                     )),
+                    ..Default::default()
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn test_version_scheme() {
+        // samples from https://peps.python.org/pep-0440/#examples-of-compliant-version-schemes
+        assert_eq!(
+            version_scheme("0.1"),
+            Ok((
+                "",
+                Version {
+                    epoch: 0,
+                    release: vec![0, 1],
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            version_scheme("1.1.0"),
+            Ok((
+                "",
+                Version {
+                    epoch: 0,
+                    release: vec![1, 1, 0],
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            version_scheme("1.1a1"),
+            Ok((
+                "",
+                Version {
+                    epoch: 0,
+                    release: vec![1, 1],
+                    pre: Some(("a".to_string(), 1)),
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            version_scheme("1.1.0.PoSt1"),
+            Ok((
+                "",
+                Version {
+                    epoch: 0,
+                    release: vec![1, 1, 0],
+                    post: Some(("post".to_string(), 1)),
+                    ..Default::default()
+                }
+            ))
+        );
+        assert_eq!(
+            version_scheme("3!1.1.2-Beta3+Ubuntu.3-release"),
+            Ok((
+                "",
+                Version {
+                    epoch: 3,
+                    release: vec![1, 1, 2],
+                    pre: Some(("b".to_string(), 3)),
+                    local: Some(vec![
+                        LocalVersionPart::LowerStr("ubuntu".to_string()),
+                        LocalVersionPart::Num(3),
+                        LocalVersionPart::LowerStr("release".to_string()),
+                    ]),
                     ..Default::default()
                 }
             ))

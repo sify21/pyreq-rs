@@ -36,6 +36,9 @@ pub fn version_cmp(input: &str) -> IResult<&str, Comparison> {
     )(input)
 }
 
+// 这个可以进一步细化，参考https://github.com/pypa/packaging/blob/main/src/packaging/specifiers.py
+// Specifier类中的_version_regex_str
+// 根据operator的不同有不同的要求
 pub fn version(input: &str) -> IResult<&str, String> {
     map(
         preceded(
@@ -119,7 +122,13 @@ pub fn marker_var(input: &str) -> IResult<&str, &str> {
     preceded(space0, env_var.or(python_str))(input)
 }
 
-// 这一个parser包括了 marker_expr, marker_and, marker_or, marker， 在parsley定义中这几个是循环引用的
+// 表达式优先级: op > () > and > or
+// marker_expr = basic | '(' marker_or ')'
+// marker_and = marker_expr 'and' marker_expr | marker_expr
+// marker_or = marker_and 'or' marker_and | marker_and
+// marker = marker_or
+// 从下往上看更容易理解
+
 pub fn marker_expr(input: &str) -> IResult<&str, MarkerExpr> {
     alt((
         // 不用考虑空格的问题，因为marker_var和marker_op都是只吃前边的空格，后边的空格不管
