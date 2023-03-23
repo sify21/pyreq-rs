@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use nom::{
     branch::alt, bytes::complete::tag, character::complete::digit1, combinator::recognize,
     sequence::tuple, IResult, Parser,
@@ -184,6 +186,15 @@ pub enum LocalVersionPart {
     Num(u64),
 }
 
+impl Display for LocalVersionPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LocalVersionPart::LowerStr(s) => write!(f, "{}", s),
+            LocalVersionPart::Num(n) => write!(f, "{}", n),
+        }
+    }
+}
+
 // this is version scheme, defined in pep 440.
 // this is a version identifier, it is not the same as the string used in VersionSpec
 // TODO impl Ord for sorting Versions
@@ -195,4 +206,41 @@ pub struct Version {
     pub post: Option<(String, u64)>,
     pub dev: Option<(String, u64)>,
     pub local: Option<Vec<LocalVersionPart>>,
+}
+
+// refer to Version.__str__ from https://github.com/pypa/packaging/blob/main/src/packaging/version.py
+impl Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut parts = vec![];
+        if self.epoch != 0 {
+            parts.push(format!("{}!", self.epoch));
+        }
+        parts.push(
+            self.release
+                .iter()
+                .map(|u| u.to_string())
+                .collect::<Vec<String>>()
+                .join("."),
+        );
+        if let Some((l, n)) = self.pre.as_ref() {
+            parts.push(format!("{}{}", l, n));
+        }
+        if let Some((_, n)) = self.post.as_ref() {
+            parts.push(format!(".post{}", n));
+        }
+        if let Some((_, n)) = self.dev.as_ref() {
+            parts.push(format!(".dev{}", n));
+        }
+        if let Some(local) = self.local.as_ref() {
+            parts.push(format!(
+                "+{}",
+                local
+                    .iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<String>>()
+                    .join(".")
+            ));
+        }
+        write!(f, "{}", parts.join(""))
+    }
 }
