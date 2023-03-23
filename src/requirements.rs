@@ -1,6 +1,9 @@
-use std::fmt::Display;
+use std::{cmp::Ordering, fmt::Display};
 
 use crate::parser::version::version_scheme;
+
+#[cfg(test)]
+mod tests;
 
 // version_cmp
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -181,10 +184,32 @@ impl RequirementSpecifier {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocalVersionPart {
-    LowerStr(String),
     Num(u64),
+    LowerStr(String),
+}
+
+// https://peps.python.org/pep-0440/#local-version-identifiers
+impl Ord for LocalVersionPart {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self {
+            Self::Num(self_n) => match other {
+                Self::Num(other_n) => self_n.cmp(other_n),
+                Self::LowerStr(_) => Ordering::Greater,
+            },
+            Self::LowerStr(self_s) => match other {
+                Self::Num(_) => Ordering::Less,
+                Self::LowerStr(other_s) => self_s.cmp(other_s),
+            },
+        }
+    }
+}
+
+impl PartialOrd for LocalVersionPart {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Display for LocalVersionPart {
@@ -197,10 +222,9 @@ impl Display for LocalVersionPart {
 }
 
 // this is a version identifier, defined in pep 440, it is not the same as the string used in VersionSpec
-// TODO impl Ord for sorting Versions
 // public version identifier = [N!]N(.N)*[{a|b|rc}N][.postN][.devN]
 // local version identifier = <public version identifier>[+<local version label>]
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Version {
     pub epoch: u64,
     pub release: Vec<u64>,
@@ -208,6 +232,18 @@ pub struct Version {
     pub post: Option<(String, u64)>,
     pub dev: Option<(String, u64)>,
     pub local: Option<Vec<LocalVersionPart>>,
+}
+
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        todo!()
+    }
+}
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Version {
